@@ -183,7 +183,7 @@ def psub_init_cli(args) -> None:
 
     create_memo(paths["memo"])
 
-    shutil.copy2("psub/default_conf.json", paths["conf"])
+    shutil.copy2("default_conf.json", paths["conf"])
 
     paths["scripts"].mkdir(exist_ok=True)
     paths["outputs"].mkdir(exist_ok=True)
@@ -335,66 +335,3 @@ def main():
     # Parse + dispatch
     args = parser.parse_args()
     args.func(args)
-
-
-if __name__ == "__main__":
-    # print(get_head_hash())
-    # print(type(get_uuid()))
-    # print(get_timestamp())
-
-    # pat = "bin"
-    # path = Path(".venv/bin")
-    # print(pat)
-    # print(path.resolve(), fnmatch(path.resolve(), pat))
-    # print(path, fnmatch(path, pat))
-
-    # print(path.parts)
-    # print(path.resolve().parts)
-    # print(path.resolve().relative_to(get_git_root()))
-
-    # path = Path("sub/main/main.py")
-    # for pat in [".py", "*.py", "main", "sub"]:
-    #     print(check_path_match(path, pat))
-    # print(check_path_match(path, *[".py", "*.py", "main", "sub"]))
-
-    # src_root = Path("")
-    # dst_root = Path("psub-data/outputs/test1/code")
-    # print(src_root, src_root.resolve(), dst_root.resolve())
-
-    # snap_ignores = [
-    #     # "__pycache__",
-    #     "psub-data",
-    #     "*.egg-info",
-    #     ".gitignore",
-    #     "README*",
-    #     ".git",
-    # ]
-    # snap_symlinks = [
-    #     ".venv",
-    #     "__pycache__",
-    #     "*.toml",
-    # ]
-
-    # clone_source_code(src_root, dst_root, snap_ignores, snap_symlinks)
-
-    # for root, dirs, files in os.walk(src_root):
-    #     print(root, dirs, files)
-
-    # status = check_git_clean(verbose=True)
-    # print(status)
-
-    # print(run_git_command("git rev-parse --show-toplevel"))
-    # print(get_git_root())
-    # print(get_head_hash())
-    # print(check_git_clean(verbose=True))
-    # output_dir = get_git_root() / PSUB_ROOT_DIR / PSUB_OUTPUTS / f"commit-{get_head_hash()}"
-    # print(output_dir)
-
-    # snapshot_code(output_dir, get_head_hash(), get_head_msg())
-
-    a = Path("main.py")
-    b = Path("main")
-    c = Path("test.txt")
-    print(c)
-    print(c.with_suffix(a.suffix))
-    print(c.with_suffix(b.suffix))
