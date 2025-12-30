@@ -15,19 +15,17 @@ from typing import Any
 # Helper funcitons
 ########################
 
-PSUB_ROOT_DIR:  str = "psub-data"
+PSUB_ROOT:      str = "psub-data"
 PSUB_READY:     str = ".ready"
 PSUB_OUTPUTS:   str = "outputs"
 PSUB_SCRIPTS:   str = "scripts"
 PSUB_MEMO:      str = "memo.tsv"
 PSUB_CONF:      str = "conf.json"
 
-UUID_LEN: int = 7
+SNAP_IGNORES:   str = "snap_ignores"
+SNAP_SYMLINKS:  str = "snap_symlinks"
 
-GIT_NOT_FOUND_ERR = RuntimeError(
-    "Git not found. "
-    "Please run psub inside a git repository."
-)
+UUID_LEN: int = 7
 
 
 def run_git_command(command: str) -> str:
@@ -124,75 +122,7 @@ def clone_source_code(
     print(f"Successfully cloned from {src_root} to {dst_root}.")
 
 
-def create_memo(path: str | Path) -> None:
-    """Creates an empty memo.tsv with header row."""
-    path = Path(path)
-    if path.exists():
-        raise ValueError(f"Memo already exists at {path}.")
-    memo_header = "timestamp\tcommit\texp_name\toutput\tnotes\n"
-    path.write_text(memo_header)
-
-
-def append_memo(path: str | Path, timestamp: str, commit: str, 
-                exp_name: str, output: str | Path, notes: str) -> None:
-    """Append a new row to memo.tsv."""
-    path = Path(path)
-    if not path.exists():
-        raise ValueError(f"Memo does not exist at {path}.")
-    content = f"{timestamp}\t{commit}\t{exp_name}\t{output}\t{notes}\n"
-    with path.open("a", encoding="utf-8") as f:
-        f.write(content)
-
-
-########################
-# CLI functions
-########################
-
-def check_psub_ready() -> bool:
-    """Check if psub is initialized."""
-    psub_ready = get_git_root() / PSUB_ROOT_DIR / PSUB_READY
-    return psub_ready.exists()
-
-
-def psub_init_cli(args) -> None:
-    """
-    Handle: psub init
-
-    Initializes psub-data folder
-    psub-data/
-    |-- memo.tsv            # snapshots submission info
-    |-- conf.json           # customized configs (contains snap_ignore and snap_symlinks)
-    |-- scripts/            # customized submission scripts
-    |-- outputs/            # experiment outputs
-    """
-    root_dir = get_git_root()
-    psub_dir = root_dir / PSUB_ROOT_DIR
-    paths = {
-        "ready":    psub_dir / PSUB_READY,
-        "memo":     psub_dir / PSUB_MEMO,
-        "conf":     psub_dir / PSUB_CONF,
-        "scripts":  psub_dir / PSUB_SCRIPTS,
-        "outputs":  psub_dir / PSUB_OUTPUTS,
-    }
-
-    if paths["ready"].exists():
-        logging.info("INFO: psub is already initialized.")
-        return
-    
-    psub_dir.mkdir(exist_ok=True)
-
-    create_memo(paths["memo"])
-
-    shutil.copy2("default_conf.json", paths["conf"])
-
-    paths["scripts"].mkdir(exist_ok=True)
-    paths["outputs"].mkdir(exist_ok=True)
-
-    paths["ready"].touch()
-    print("Sucessfully initialized psub project.")
-
-
-def snapshot_code(output_dir: str | Path, commit_hash: str, commit_msg: str) -> None:
+def create_snapshot(output_dir: str | Path, commit_hash: str, commit_msg: str) -> None:
     """
     Creates a snapshot when copying the source code of a commit hash
     for the first time. 
@@ -220,15 +150,15 @@ def snapshot_code(output_dir: str | Path, commit_hash: str, commit_msg: str) -> 
     )
     paths["meta"].write_text(meta)
 
-    src_conf = root_dir / PSUB_ROOT_DIR / PSUB_CONF
+    src_conf = root_dir / PSUB_ROOT / PSUB_CONF
     with src_conf.open("r", encoding="utf-8") as f:
         conf: dict = json.load(f)
-        snap_ignores: list[str] = conf.get("snap_ignores", [])
-        snap_symlinks: list[str] = conf.get("snap_symlinks", [])
+        snap_ignores: list[str] = conf.get(SNAP_IGNORES, [])
+        snap_symlinks: list[str] = conf.get(SNAP_SYMLINKS, [])
     shutil.copy2(src_conf, paths["conf"])
 
-    if PSUB_ROOT_DIR not in snap_ignores:
-        snap_ignores.append(PSUB_ROOT_DIR)
+    if PSUB_ROOT not in snap_ignores:
+        snap_ignores.append(PSUB_ROOT)
     clone_source_code(root_dir, paths["code"], snap_ignores, snap_symlinks)
 
     paths["exp"].mkdir(exist_ok=True)
@@ -237,15 +167,112 @@ def snapshot_code(output_dir: str | Path, commit_hash: str, commit_msg: str) -> 
     print(f"Successfully snapshot source code at {output_dir}.")
 
 
-def run_script(script: Path, output_dir: Path) -> None:
-    """"""
-    if output_dir.exists():
-        raise RuntimeError(f"Output path is designed to be unique, but {output_dir} already exists. ")
-    output_dir.mkdir()
-    
-    # make dir, copy script, add to global memo, run script
+def create_memo(path: str | Path) -> None:
+    """Creates an empty memo.tsv with header row."""
+    path = Path(path)
+    if path.exists():
+        raise ValueError(f"Memo already exists at {path}.")
+    memo_header = "timestamp\tcommit\texp_name\toutput\tnotes\n"
+    path.write_text(memo_header)
 
-    shutil.copy2(script, output_dir / script.name)
+
+def append_memo(path: str | Path, timestamp: str, commit: str, 
+                exp_name: str, output: str | Path, notes: str) -> None:
+    """Append a new row to memo.tsv."""
+    path = Path(path)
+    if not path.exists():
+        raise ValueError(f"Memo does not exist at {path}.")
+    content = f"{timestamp}\t{commit}\t{exp_name}\t{output}\t{notes}\n"
+    with path.open("a", encoding="utf-8") as f:
+        f.write(content)
+
+
+def sync_conf(src: str | Path, dst: str | Path, 
+              overwrite: bool=False, force: bool=False) -> None:
+    """Sync src .gitignore to dst conf.json.
+    
+    Args:
+        overwrite: defaults merge src to snap_ignores; if true, overwrite snap_ignore
+        force: if true, reconstruct conf from scratch
+    """
+    src = Path(src)
+    dst = Path(dst)
+
+    if not dst.exists() or force:
+        conf = {
+            SNAP_IGNORES: [],
+            SNAP_SYMLINKS: [],
+        }
+    else:
+        with dst.open("r", encoding="utf-8") as f:
+            conf = json.load(f)
+
+    if not src.exists():
+        snap_ignores = []
+    else:
+        with src.open("r", encoding="utf-8") as f:
+            snap_ignores = [
+                line.strip() for line in f
+                if line.strip() and not line.startswith("#")
+            ]
+
+    if overwrite:
+        conf[SNAP_IGNORES] = snap_ignores
+    else:
+        conf[SNAP_IGNORES] = list(set(conf[SNAP_IGNORES]) | set(snap_ignores))
+
+    with dst.open("w", encoding="utf-8") as f:
+        json.dump(conf, f, indent=2)
+    
+    print(f"Successfully updated config at {dst} from {src}.")
+
+
+########################
+# CLI functions
+########################
+
+def check_psub_ready() -> bool:
+    """Check if psub is initialized."""
+    psub_ready = get_git_root() / PSUB_ROOT / PSUB_READY
+    return psub_ready.exists()
+
+
+def psub_init_cli(args) -> None:
+    """
+    Handle: psub init
+
+    Initializes psub-data folder
+    psub-data/
+    |-- memo.tsv            # snapshots submission info
+    |-- conf.json           # customized configs (contains snap_ignore and snap_symlinks)
+    |-- scripts/            # customized submission scripts
+    |-- outputs/            # experiment outputs
+    """
+    root_dir = get_git_root()
+    psub_dir = root_dir / PSUB_ROOT
+    paths = {
+        "ready":    psub_dir / PSUB_READY,
+        "memo":     psub_dir / PSUB_MEMO,
+        "conf":     psub_dir / PSUB_CONF,
+        "scripts":  psub_dir / PSUB_SCRIPTS,
+        "outputs":  psub_dir / PSUB_OUTPUTS,
+    }
+
+    if paths["ready"].exists():
+        logging.info("INFO: psub is already initialized.")
+        return
+    
+    psub_dir.mkdir(exist_ok=True)
+
+    create_memo(paths["memo"])
+
+    sync_conf(root_dir / ".gitignore", paths["conf"])
+
+    paths["scripts"].mkdir(exist_ok=True)
+    paths["outputs"].mkdir(exist_ok=True)
+
+    paths["ready"].touch()
+    print("Sucessfully initialized psub project.")
 
 
 def psub_run_cli(
@@ -269,7 +296,7 @@ def psub_run_cli(
     commit_hash = commit_hash or get_head_hash()
     exp_name = f"{exp_name or 'exp'}-{get_uuid()}"
 
-    output_root = get_git_root() / PSUB_ROOT_DIR / PSUB_OUTPUTS
+    output_root = get_git_root() / PSUB_ROOT / PSUB_OUTPUTS
     commit_dir = output_root / f"commit-{commit_hash}"
     exp_dir = commit_dir / "experiments" / exp_name
 
@@ -278,7 +305,7 @@ def psub_run_cli(
 
     # Snapshot source code if necessary.
     if is_head_commit:
-        snapshot_code(commit_dir, commit_hash, get_head_msg())
+        create_snapshot(commit_dir, commit_hash, get_head_msg())
     elif not (commit_dir / ".ready").exists():
         raise RuntimeError(
             f"{commit_dir} doesn't have snapshot. "
@@ -289,10 +316,18 @@ def psub_run_cli(
     exp_dir.mkdir()
     shutil.copy2(script, exp_dir / Path("script").with_suffix(script.suffix))
     append_memo(
-        get_git_root() / PSUB_ROOT_DIR / PSUB_MEMO,
+        get_git_root() / PSUB_ROOT / PSUB_MEMO,
         get_timestamp(), commit_hash, exp_name, exp_dir, notes
     )
     subprocess.run(["bash", script.resolve()], check=True)
+
+
+def psub_sync_cli(overwrite: bool=False, force: bool=False) -> None:
+    """Handle: psub sync"""
+    root_dir = get_git_root()
+    src = root_dir / ".gitignore"
+    dst = root_dir / PSUB_ROOT / PSUB_CONF
+    sync_conf(src, dst, overwrite, force)
 
 
 ########################
@@ -330,6 +365,19 @@ def main():
             args.exp_name,
             args.notes,
         )
+    )
+
+    # 3. psub sync
+    psub_sync = subparsers.add_parser(
+        "sync", help="sync .gitignore to conf.json")
+    psub_sync.add_argument(
+        "--overwrite", action="store_true",
+        help="overwrite with .gitignore (defauts to merging)")
+    psub_sync.add_argument(
+        "--force", action="store_true",
+        help="reconstruct conf.json (use with caution)")
+    psub_sync.set_defaults(
+        func=lambda args: psub_sync_cli(args.overwrite, args.force)
     )
 
     # Parse + dispatch
