@@ -78,7 +78,7 @@ def get_timestamp() -> str:
 def check_path_match(path: str | Path, *patterns: str) -> bool:
     """Check if any part in path matches pattern."""
     path = Path(path)
-    return any(fnmatch(part, pat) for part in path.parts for pat in patterns)
+    return any(fnmatch(part, pat.rstrip("/")) for part in path.parts for pat in patterns)
 
 
 def clone_source_code(
