@@ -2,4 +2,5 @@
 .venv
 .cache
 __pycache__
+psub-data
 *.egg-info
