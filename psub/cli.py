@@ -227,6 +227,20 @@ def sync_conf(src: str | Path, dst: str | Path,
     print(f"Successfully updated config at {dst} from {src}.")
 
 
+def run_script(path: str | Path) -> None:
+    """Adaptively run script (absolute path) based on extension."""
+    path = Path(path)
+    suffix = path.suffix
+    commands = {
+        ".py": "python",
+        ".sh": "bash",
+    }
+    def _suffix_error():
+        raise ValueError(f"Suffix of {path} is not supported. "
+                         "Please use .py or .sh")
+    subprocess.run([commands.get(suffix, _suffix_error()), path.resolve()], check=True)
+
+
 ########################
 # CLI functions
 ########################
@@ -314,12 +328,13 @@ def psub_run_cli(
     
     # Run submission script.
     exp_dir.mkdir()
-    shutil.copy2(script, exp_dir / Path("script").with_suffix(script.suffix))
+    new_script = exp_dir / Path("script").with_suffix(script.suffix)
+    shutil.copy2(script, new_script)
     append_memo(
         get_git_root() / PSUB_ROOT / PSUB_MEMO,
         get_timestamp(), commit_hash, exp_name, exp_dir, notes
     )
-    subprocess.run(["bash", script.resolve()], check=True)
+    run_script(new_script)
 
 
 def psub_sync_cli(overwrite: bool=False, force: bool=False) -> None:
