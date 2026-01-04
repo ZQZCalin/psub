@@ -235,10 +235,10 @@ def run_script(path: str | Path) -> None:
         ".py": "python",
         ".sh": "bash",
     }
-    def _suffix_error():
+    if suffix not in commands:
         raise ValueError(f"Suffix of {path} is not supported. "
                          "Please use .py or .sh")
-    subprocess.run([commands.get(suffix, _suffix_error()), path.resolve()], check=True)
+    subprocess.run([commands.get(suffix), path.resolve()], check=True)
 
 
 ########################
