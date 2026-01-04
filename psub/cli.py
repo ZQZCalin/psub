@@ -227,7 +227,7 @@ def sync_conf(src: str | Path, dst: str | Path,
     print(f"Successfully updated config at {dst} from {src}.")
 
 
-def run_script(path: str | Path) -> None:
+def run_script(path: str | Path, *args) -> None:
     """Adaptively run script (absolute path) based on extension."""
     path = Path(path)
     suffix = path.suffix
@@ -238,7 +238,7 @@ def run_script(path: str | Path) -> None:
     if suffix not in commands:
         raise ValueError(f"Suffix of {path} is not supported. "
                          "Please use .py or .sh")
-    subprocess.run([commands.get(suffix), path.resolve()], check=True)
+    subprocess.run([commands.get(suffix), path.resolve(), *args], check=True)
 
 
 ########################
@@ -313,6 +313,7 @@ def psub_run_cli(
     output_root = get_git_root() / PSUB_ROOT / PSUB_OUTPUTS
     commit_dir = output_root / f"commit-{commit_hash}"
     exp_dir = commit_dir / "experiments" / exp_name
+    code_dir = commit_dir / "code"
 
     if exp_dir.exists():
         raise ValueError(f"Output path already exists at {exp_dir}.")
@@ -334,7 +335,7 @@ def psub_run_cli(
         get_git_root() / PSUB_ROOT / PSUB_MEMO,
         get_timestamp(), commit_hash, exp_name, exp_dir, notes
     )
-    run_script(new_script)
+    run_script(new_script, exp_dir, code_dir)
 
 
 def psub_sync_cli(overwrite: bool=False, force: bool=False) -> None:
