@@ -182,6 +182,7 @@ def append_memo(path: str | Path, timestamp: str, commit: str,
     path = Path(path)
     if not path.exists():
         raise ValueError(f"Memo does not exist at {path}.")
+    notes = " | ".join(line.strip() for line in notes.splitlines())
     content = f"{timestamp}\t{commit}\t{exp_name}\t{output}\t{notes}\n"
     with path.open("a", encoding="utf-8") as f:
         f.write(content)
